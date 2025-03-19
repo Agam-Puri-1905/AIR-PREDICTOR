@@ -71,17 +71,15 @@
     </div>
 
     <script>
-        // Retrieve the query parameters
-        const params = new URLSearchParams(window.location.search);
-        const results = JSON.parse(params.get("results"));
+        document.addEventListener("DOMContentLoaded", function () {
+            const results = JSON.parse(localStorage.getItem("results"));
 
-        // Log results for debugging
-        console.log("Results Data:", results);
+            if (!results || results.length === 0) {
+                document.querySelector("h2").innerText = "No results found.";
+                return;
+            }
 
-        // Check if results exist and populate the table
-        if (results && results.length > 0) {
             const resultsTable = document.getElementById("resultsTable").getElementsByTagName("tbody")[0];
-
             // Populate the table with results
             results.forEach(college => {
                 const row = resultsTable.insertRow();
@@ -92,10 +90,9 @@
                     <td>${college["All India State Rank"] || 'Not Available'}</td>
                     <td>${college["JEE Mains Percentile"] || 'Not Available'}</td>
                 `;
+        
             });
-        } else {
-            document.querySelector("h2").innerText = "No results found.";
-        }
+        });
 
         // Function to download the results as a PDF
         async function downloadPDF() {
