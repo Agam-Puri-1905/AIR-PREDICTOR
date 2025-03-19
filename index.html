@@ -178,55 +178,52 @@
         }
 
         function predictCollege() {
-            if (!data) {
-                alert("Data not loaded yet. Please try again.");
-                return;
-            }
+    if (!data) {
+        alert("Data not loaded yet. Please try again.");
+        return;
+    }
 
-            const exam = document.getElementById("exam").value;
-            const method = document.querySelector('input[name="method"]:checked').value;
-            const scoreInput = document.getElementById("score").value;
-            const branch = document.getElementById("branch").value;
+    const exam = document.getElementById("exam").value;
+    const method = document.querySelector('input[name="method"]:checked').value;
+    const scoreInput = document.getElementById("score").value;
+    const branch = document.getElementById("branch").value;
 
-            if (!scoreInput) {
-                alert("Please enter a valid score.");
-                return;
-            }
+    if (!scoreInput) {
+        alert("Please enter a valid score.");
+        return;
+    }
 
-            const score = parseFloat(scoreInput);
-            if (isNaN(score)) {
-                alert("Invalid input. Please enter a valid number.");
-                return;
-            }
+    const score = parseFloat(scoreInput);
+    if (isNaN(score)) {
+        alert("Invalid input. Please enter a valid number.");
+        return;
+    }
 
-            const dataset = data["Cleaned_MHT-CET_Cutoff_Data (1)"] || [];
-            let filteredData = dataset.filter(college => college["Merit Exam"] === exam);
+    let filteredData = data["Cleaned_MHT-CET_Cutoff_Data (1)"].filter(college => college["Merit Exam"] === exam);
 
-            if (method === "Percentile") {
-                filteredData = filteredData.filter(college => parseFloat(college["JEE Mains Percentile"]) <= score);
-            } else {
-                filteredData = filteredData.filter(college => parseInt(college["All India State Rank"]) >= score);
-            }
+    if (method === "Percentile") {
+        filteredData = filteredData.filter(college => parseFloat(college["JEE Mains Percentile"]) <= score);
+    } else {
+        filteredData = filteredData.filter(college => parseInt(college["All India State Rank"]) >= score);
+    }
 
-            if (branch !== "All Branches") {
-                filteredData = filteredData.filter(college => college["Branch Name"].trim() === branch);
-            }
+    if (branch !== "All Branches") {
+        filteredData = filteredData.filter(college => college["Branch Name"].trim() === branch);
+    }
 
-            filteredData = filteredData.slice(0, 25);
+    filteredData = filteredData.slice(0, 25);
 
-            if (filteredData.length === 0) {
-                alert("No matching colleges found.");
-                return;
-            }
+    if (filteredData.length === 0) {
+        alert("No matching colleges found.");
+        return;
+    }
 
-            const queryParams = new URLSearchParams({
-                results: JSON.stringify(filteredData)
-            });
+    // Store filtered data in localStorage
+    localStorage.setItem("results", JSON.stringify(filteredData));
 
-            const url = `results.html?${queryParams.toString()}`;
-            console.log("Redirecting to:", url);
-            window.location.href = url;
-        }
+    // Redirect to results page
+    window.location.href = "results.html";
+}
 
         loadData();
     </script>
