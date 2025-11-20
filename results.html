@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Prediction Results</title>
+
+  <!-- PDF libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.16.0/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    :root{
+      --cs-red:#d22c2c; --cs-ink:#1b1b1b; --cs-muted:#6c757d;
+      --cs-bg:#f7f7f9; --cs-card:#ffffff; --cs-border:#e9ecef;
+      --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.06);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--cs-bg);
+      color:var(--cs-ink);
+      font-family:ui-sans-serif,system-ui,"Poppins","Segoe UI",Roboto;
+    }
+    .wrap{max-width:1020px;margin:0 auto;padding:24px}
+    h2{margin:0 0 12px; font-size:clamp(22px,2vw+10px,32px)}
+    .pill{
+      display:inline-flex;background:rgba(210,44,44,.08);color:var(--cs-red);
+      border:1px solid rgba(210,44,44,.18);padding:6px 12px;border-radius:999px;
+      font-weight:700;font-size:13px
+    }
+    .card{
+      background:var(--cs-card);
+      border:1px solid var(--cs-border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:18px;
+      margin:12px 0
+    }
+    .muted{color:var(--cs-muted)}
+    table{
+      width:100%;border-collapse:separate;border-spacing:0;
+      margin-top:10px;overflow:hidden;border-radius:12px
+    }
+    th,td{padding:12px 10px;border-bottom:1px solid var(--cs-border);text-align:left}
+    thead th{background:#fff;font-weight:800}
+    tbody tr:nth-child(even){background:#fcfcfe}
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;
+      padding:12px 18px;border-radius:12px;border:0;cursor:pointer;font-weight:800
+    }
+    .btn-primary{background:var(--cs-red);color:#fff}
+    .btn-primary:hover{filter:brightness(.95)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="pill">Results</div>
+    <h2>Prediction Results</h2>
+
+    <!-- Greeting from student details -->
+    <div id="studentHeader" class="card" style="display:none">
+      <p id="studentHello" class="muted" style="margin:0"></p>
+    </div>
+
+    <div class="card">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>Choice Code</th>
+            <th>Institute</th>
+            <th>Branch</th>
+            <th>Merit Exam</th>
+            <th>Seat Type</th>
+            <th>Type</th>
+            <th>Minimum Rank</th>
+            <th>Percentile</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div style="margin-top:12px">
+        <button class="btn btn-primary" onclick="downloadPDF()">Download PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LS_DETAILS = "studentDetails";
+
+    function getDetails(){
+      try{ return JSON.parse(localStorage.getItem(LS_DETAILS)); }catch{ return null; }
+    }
+
+    function requireDetailsOrRedirect(){
+      const det = getDetails();
+      if(!det || !det.name || !det.email || !det.mobile || !det.state || !det.city){
+        alert("Please fill your student details first.");
+        location.replace("index.html");
+        return false;
+      }
+      const header = document.getElementById("studentHeader");
+      const hello  = document.getElementById("studentHello");
+      header.style.display = "block";
+      hello.textContent = `Hi ${det.name} — showing results for your preferences (${det.city}, ${det.state}).`;
+      return true;
+    }
+
+    function safeGet(row, keys){
+      for(const k of keys){
+        if(row && row[k] !== undefined && row[k] !== null && row[k] !== "") return row[k];
+      }
+      return "N/A";
+    }
+
+    function loadResultsFromStorage(){
+      const raw = localStorage.getItem("results");
+      let results = [];
+      try{ if(raw) results = JSON.parse(raw); }catch{ results = []; }
+
+      const tbody = document.querySelector("#resultsTable tbody");
+      if(!results || !results.length){
+        tbody.innerHTML = "<tr><td colspan='7'>No results found. Please go back and run the predictor again.</td></tr>";
+        return;
+      }
+
+      // Build rows based on your All-India JSON keys
+      const rowsHtml = results.map(r => {
+        const choice = safeGet(r, ["Institute Code","code"]);
+        const institute  = safeGet(r, ["Institute Name","Institute","College Name"]);
+        const branch     = safeGet(r, ["Branch Name","Branch"]);
+        const merit      = safeGet(r, ["Merit Exam","Exam"]);
+        const seatType   = safeGet(r, ["Seat Type"]);
+        const type   = safeGet(r, ["Type"]);
+        const rank       = safeGet(r, ["All India State Rank","Rank","Closing Rank"]);
+        const percentile = safeGet(r, ["JEE Mains Percentile","Percentile"]);
+        return `
+          <tr>
+            <td>${choice}</td>
+            <td>${institute}</td>
+            <td>${branch}</td>
+            <td>${merit}</td>
+            <td>${seatType}</td>
+            <td>${type}</td>
+            <td>${rank}</td>
+            <td>${percentile}</td>
+          </tr>`;
+      }).join("");
+
+      tbody.innerHTML = rowsHtml;
+    }
+
+    async function downloadPDF(){
+      try{
+        // You can replace this with your own template, or simply export from the table.
+        const rows = Array.from(document.querySelectorAll("#resultsTable tbody tr"))
+          .map(tr => Array.from(tr.querySelectorAll("td")).map(td=>td.innerText));
+
+        if(rows.length===0){
+          alert("No data available to generate PDF.");
+          return;
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({orientation:"landscape",unit:"pt",format:"a4"});
+        doc.setFontSize(14);
+        doc.text("All India Rank College Prediction Results", 40, 40);
+
+        doc.autoTable({
+          startY:60,
+          head:[["Choice Code","Institute","Branch","Merit Exam","Seat Type","Type","Category","Minimum Rank","Percentile"]],
+          body:rows,
+          theme:"grid",
+          margin:{left:40,right:40}
+        });
+
+        const blob = doc.output("blob");
+        const url = URL.createObjectURL(blob);
+        const a = Object.assign(document.createElement("a"), {
+          href:url,
+          download:"All_India_College_Prediction_Results.pdf"
+        });
+        a.click();
+        URL.revokeObjectURL(url);
+      }catch(err){
+        alert("Failed to generate PDF: " + err.message);
+        console.error(err);
+      }
+    }
+
+    // Boot
+    if(requireDetailsOrRedirect()){
+      loadResultsFromStorage();
+    }
+  </script>
+</body>
+</html>
