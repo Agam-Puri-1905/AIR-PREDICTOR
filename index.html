@@ -150,7 +150,7 @@
         <div class="grid-2">
           <div>
             <label for="studentName">Full Name</label>
-            <input id="studentName" type="text" placeholder="e.g., Agam Puri" />
+            <input id="studentName" type="text" placeholder="e.g., John Doe" />
             <div id="errName" class="error"></div>
           </div>
           <div>
@@ -205,7 +205,6 @@
           <option value="" disabled selected>Select Exam</option>
           <option value="JEE">JEE Mains-2025</option>
           <option value="NEET-2025">NEET-2025</option>
-          <option value="MHT-CET">MHT-CET</option>
         </select>
       </div>
 
@@ -349,6 +348,24 @@
       });
     }
 
+    function tryParseFloat(v){
+      if(v === undefined || v === null) return NaN;
+      try {
+        return parseFloat(String(v).trim().replace(/,/g,''));
+      } catch { return NaN; }
+    }
+    function tryParseInt(v){
+      if(v === undefined || v === null) return NaN;
+      try {
+        return parseInt(String(v).trim().replace(/,/g,''), 10);
+      } catch { return NaN; }
+    }
+
+    function normalizeExamValue(val){
+      if(!val) return "";
+      return String(val).toLowerCase();
+    }
+
     function predictCollege() {
       if (!data) {
         alert("Data not loaded yet. Please wait a moment and try again.");
@@ -376,12 +393,60 @@
         return;
       }
 
-      let filteredData = data["Cleaned_MHT-CET_Cutoff_Data (1)"].filter(college => college["Merit Exam"] === exam);
+      // read dataset
+      const dataset = data["Cleaned_MHT-CET_Cutoff_Data (1)"] || [];
+
+      // Filter by exam - make this tolerant: match by substring (jee / neet) ignoring case.
+      const examKeyCandidates = ['Merit Exam','MeritExam','Exam','Exam Name','ExamName'];
+      function rowMatchesExam(row, examValue){
+        let rowExam = "";
+        for(const k of examKeyCandidates){
+          if(k in row && row[k]){
+            rowExam = String(row[k]).toLowerCase();
+            break;
+          }
+        }
+        const selected = normalizeExamValue(exam); // e.g., "JEE" or "NEET-2025"
+        // check common identifiers
+        if(selected.includes('jee')){
+          return rowExam.includes('jee') || rowExam.includes('jeemain') || rowExam.includes('main');
+        }
+        if(selected.includes('neet')){
+          return rowExam.includes('neet');
+        }
+        // fallback strict equality
+        return rowExam === selected;
+      }
+
+      let filteredData = dataset.filter(college => rowMatchesExam(college, exam));
+
+      // If no rows matched by exam key (dataset may not have exam column), fallback to whole dataset
+      if(filteredData.length === 0){
+        filteredData = dataset.slice();
+      }
 
       if (method === "Percentile") {
-        filteredData = filteredData.filter(college => parseFloat(college["JEE Mains Percentile"]) <= score);
+        // Parse percentiles, filter where college percentile <= user percentile and sort descending (closest to user first)
+        const withPct = filteredData.map(c => {
+          const pctRaw = c["JEE Mains Percentile"] ?? c["Percentile"] ?? c["Percentile Score"] ?? c["Percentile (%)"];
+          const pct = tryParseFloat(pctRaw);
+          return { c, pct };
+        }).filter(x => !isNaN(x.pct) && x.pct <= score);
+
+        // Sort descending: highest percentile first (so a user entering 99 sees 99,98,97... order)
+        withPct.sort((a,b) => b.pct - a.pct);
+        filteredData = withPct.map(x => x.c);
       } else {
-        filteredData = filteredData.filter(college => parseInt(college["All India State Rank"]) >= score);
+        // Rank mode: consider colleges with closing rank <= userRank (user can obtain)
+        const withRank = filteredData.map(c => {
+          const rkRaw = c["All India State Rank"] ?? c["Closing Rank"] ?? c["ClosingRank"] ?? c["Closing Rank (All India)"];
+          const rk = tryParseInt(rkRaw);
+          return { c, rk };
+        }).filter(x => !isNaN(x.rk) && x.rk <= score);
+
+        // Sort descending so closest-to-user rank (largest but <= score) is first
+        withRank.sort((a,b) => b.rk - a.rk);
+        filteredData = withRank.map(x => x.c);
       }
 
       if (branch !== "All Branches") {
@@ -395,7 +460,7 @@
         return;
       }
 
-      // 🔴 NEW: log prediction with exam + method + score + branch
+      // 🔴 NEW: log prediction with exam + method + score + branch (keeps existing logging behaviour)
       logPrediction(exam, method, scoreInput, branch);
 
       // Store filtered data
